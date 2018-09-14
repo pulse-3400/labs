@@ -148,8 +148,24 @@ void correctionMachine(){
       }
       else{
         waitingcommand = 0;
-        nextstate = (turncommand == -1) ? 5 : 7;
+        nextstate = (turncommand == -1) ? 13 : 14;
       }
+      break;
+      
+    case 13:
+      turnRight();
+      nextstate = 5;
+      wheelRight.write(rightspeed);
+      wheelLeft.write(leftspeed);
+      delay(250);
+      break;
+      
+    case 14:
+      turnLeft();
+      nextstate = 7;
+      wheelRight.write(rightspeed);
+      wheelLeft.write(leftspeed);
+      delay(250);
       break;
       
     case 5:
@@ -161,6 +177,7 @@ void correctionMachine(){
     case 6:
       turnRight();
       if(linePos == 2000){
+        delay(150);
         halt();
         nextstate = 0;
       }
@@ -178,6 +195,7 @@ void correctionMachine(){
     case 8:
       turnLeft();
       if(linePos == 2000){
+        delay(150);
         halt();
         nextstate = 0;
       }
