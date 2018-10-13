@@ -118,7 +118,7 @@ void correctionMachine(){
       
       switch(linePos){
         case 0:
-          nextstate = 9;
+          nextstate = 0;
           break;
         case 1000:
           nextstate = 1;
@@ -299,7 +299,7 @@ int getLinePos(){
       LP = 1000;
       break;
     case 111:
-      LP = 2000;   
+      LP = 4000;   
       break;
     case 101:
       LP = linePos;
