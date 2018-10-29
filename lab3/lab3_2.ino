@@ -8,6 +8,7 @@
 #include <SPI.h>
 #include "nRF24L01.h"
 #include "RF24.h"
+#include "printf.h"
 
 #define NUM_SENSORS             3  // number of sensors used
 #define NUM_SAMPLES_PER_SENSOR  4  // average 4 analog samples per sensor reading
@@ -25,7 +26,9 @@
 #define SOUTH     2
 #define WEST      3
 
-#define MUXPIN                  3   // When high, read from signal amps. When low, read from side wall sensors.
+#define MUXPIN0                 3   // When high, read from signal amps. When low, read from side wall sensors.
+#define MUXPIN1                 4
+#define WALLTHRESHOLD           200 //200
 
 // ========================== Linse Sensor Setup ============================
 // sensors 0 through 2 are connected to analog inputs 4, 1, and 2, respectively
@@ -35,15 +38,22 @@ unsigned int sensorValues[NUM_SENSORS];
 
 byte robotkill = 0;    //Variable used for noise suppression in robot detection
 byte startRobot = 0;   //Variable used for noise suppression in tone detection
-//============================================================================
+// ===========================================================================
+
+
+// ============= Radio Setup ===============
+RF24 radio(9,10);
+const uint64_t pipes[2] = { 0x0000000042LL, 0x0000000043LL };
+// =========================================
 
 
 // ====== Variables for Maze Drawing ======  <-- This is lab 3 stuff
-short orientation = 1000 + NORTH;
+short orientation = 1000 + EAST;
 byte xpos = 0;
 byte ypos = 0;
-byte walls = 0;
+short walls = 0;
 short transmission;
+byte maze[9][9];
 //maybe have a maze array later? There's no algorithm yet so it doesn't really matter right now.
 /*
 Maze Coordinates explanation:
@@ -59,7 +69,6 @@ Right now I am formatting the 16-bit radio transmission like this:
               N E S W
   [ 0 0 0 0 | 0 0 0 0 | 0 0 0 0 | 0 0 0 0 ]
     Unused     Walls     ypos       xpos
-
 */
 // ========================================
 
@@ -86,29 +95,51 @@ Servo wheelLeft;
 
 void setup()
 {    
-  //Serial.begin(9600); // set the data rate in bits per second for serial data transmission
-  pinMode(MUXPIN, OUTPUT);
-  digitalWrite(MUXPIN, HIGH); // default to reading signal amps
+  radio.begin();
+  radio.setRetries(15,15);
+  radio.setAutoAck(true);
+  radio.setChannel(0x50);
+  radio.setPALevel(RF24_PA_HIGH);
+  radio.setDataRate(RF24_250KBPS);
+  radio.setPayloadSize(2);
+  radio.openWritingPipe(pipes[0]);
+  radio.openReadingPipe(1,pipes[1]);
+  radio.startListening();
   
+//  Serial.begin(9600); // set the data rate in bits per second for serial data transmission
+
+// ============= Analog Mux Setup and 660Hz Detection =============
+  pinMode(MUXPIN0, OUTPUT);
+  pinMode(MUXPIN1, OUTPUT);
+  digitalWrite(MUXPIN0, LOW); // default to reading microphone amp
+  digitalWrite(MUXPIN1, HIGH);  
+
+  while (startRobot < 20) { //Tone detection
+    listen660();
+  }
+
+  digitalWrite(MUXPIN1, LOW);
+// ================================================================
+
+  
+// ============== Wheel Setup (AFTER 660Hz FFT) =================
   wheelRight.attach(5); // wheels
   wheelLeft.attach(6);
 
-  pinMode(8, OUTPUT);  //Debug LED for front wall sensor
-  digitalWrite(8, LOW);
-
-  pinMode(2, OUTPUT); //Debug LED for IR detection
-  pinMode(9, OUTPUT); //Debug LED for tone detection
-  digitalWrite(2, LOW);
-
   wheelRight.write(90); //Start wheels stationary
   wheelLeft.write(90);
+// ==============================================================
+
+
+  radio.stopListening();
+  short t = 0xFFFF;
+  radio.startWrite(&t, sizeof(short));
   
-  while (startRobot < 20) { //Tone detection
-    listen660();
-    delay(10);
-  }
-  digitalWrite(9, HIGH);
-  
+  delay(500);
+  getTurn();
+  turncommand = 0;
+  transmission = (walls << 8) | (1<<8); // FORMATION OF RADIO TRANSMISSION (explanation above)
+  radio.startWrite(&transmission, sizeof(short)); 
 }
 
 
@@ -117,17 +148,20 @@ void loop()
   if(waitingcommand == 1){
     getTurn();
     transmission = (walls << 8) | (ypos << 4) | xpos; // FORMATION OF RADIO TRANSMISSION (explanation above)
+    maze[ypos][xpos] |= walls; //Update maze array
+    radio.startWrite(&transmission, sizeof(short));
     waitingcommand = 0;
-    digitalWrite(8, HIGH);
   }
- 
+
   correctionMachine();
   
   doFFT();
   
   wheelRight.write(rightspeed);
   wheelLeft.write(leftspeed);
+  
   delay(5);
+  
 }
 
 //constrain(analog, ANALOG_MIN, 255);
@@ -186,7 +220,7 @@ void correctionMachine(){
           xpos++;
           break;
         case 2:
-          ypos--;
+          ypos++;
           break;
         case 3:
           xpos--;
@@ -360,18 +394,24 @@ int getLinePos(){
 }
 
 void getTurn() {
-  digitalWrite(MUXPIN, LOW); //read from wall sensors
+  digitalWrite(MUXPIN0, LOW); //read from wall sensors
   short wallval = 0;
   short wallvalleft = 0;
   short wallvalright = 0;
+  
   wallval = analogRead(A3);
   wallvalleft = analogRead(A0);
   wallvalright = analogRead(A5);
   
+//  Serial.println(wallval);
+//  Serial.println(wallvalleft);
+//  Serial.println(wallvalright);
+  
+  
   byte WP, L, B, R;
-  L = (wallvalleft > 200) ? B01 : 0;
-  B = (wallval > 200) ? B01 : 0;
-  R = (wallvalright > 200) ? B01 : 0;
+  L = (wallvalleft > WALLTHRESHOLD) ? B01 : 0;
+  B = (wallval > WALLTHRESHOLD) ? B01 : 0;
+  R = (wallvalright > WALLTHRESHOLD + 30) ? B01 : 0;
   WP = (L<<2) | (B<<1) | R ;
 
   //Assign walls
@@ -458,7 +498,6 @@ void listen660() {
     }
     else{
       startRobot = 0;
-      digitalWrite(9, LOW);
     }
 
     TIMSK0 = temp_TIMSK0;
@@ -468,7 +507,7 @@ void listen660() {
 }
 
 void doFFT() {
-  digitalWrite(MUXPIN, HIGH); //read from signal amps
+  digitalWrite(MUXPIN0, HIGH); //read from signal amp
   
   byte temp_TIMSK0 = TIMSK0; // save register values to avoid turning timer off completely
   byte temp_ADCSRA = ADCSRA;
@@ -510,7 +549,6 @@ void doFFT() {
     if(robotkill > 10){
       wheelRight.write(90);
       wheelLeft.write(90);
-      digitalWrite(2, HIGH);
       while(1);
     }
 
