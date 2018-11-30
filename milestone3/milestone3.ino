@@ -14,11 +14,11 @@
 #define NUM_SAMPLES_PER_SENSOR  4  // average 4 analog samples per sensor reading
 #define EMITTER_PIN             2  // emitter is controlled by digital pin 2
 
-#define BACK                    0  // Array indices for back, right, and left line sensors
-#define RIGHT                   1
+#define BACK                    1  // Array indices for back, right, and left line sensors
+#define RIGHT                   0
 #define LEFT                    2
 
-#define LINETHRESHOLD           400 // Threshold value for line sensors
+#define LINETHRESHOLD           380 // Threshold value for line sensors
 #define corrector               30
 
 #define NORTH     0
@@ -28,7 +28,7 @@
 
 #define MUXPIN0                 3   //Address bits for analog multiplexer
 #define MUXPIN1                 4   //Addresses: 00 = 660Hz, 01 = front wall sensor, 10 = left, 11 = right
-#define WALLTHRESHOLD           200 //200
+#define WALLTHRESHOLD           100 //200
 
 // ========================== Linse Sensor Setup ============================
 // sensors 0 through 2 are connected to analog inputs 4, 1, and 2, respectively
@@ -49,11 +49,11 @@ const uint64_t pipes[2] = { 0x0000000042LL, 0x0000000043LL };
 
 // ====== Variables for Maze Drawing ======  <-- This is lab 3 stuff
 short orientation = 1000 + EAST; //change this to change starting orientation
-byte xpos = 0;
-byte ypos = 0;
+static byte xpos = 0;
+static byte ypos = 0;
 short walls = 0;
 short transmission;
-byte maze[9][9]; 
+static byte maze[9][9]; 
 // ==== Maze Array Explanation ====
 //                       N E S W
 //   [ 0 0 0 |    0    | 0 0 0 0 ]
@@ -86,10 +86,10 @@ volatile short rightspeed = 0;
 
 // ========= State machine variables =========
 short linePos = 0;
-short state;
-short nextstate = 0;
-short waitingcommand = 0;
-short turncommand = 0;
+static short state;
+static short nextstate = 0;
+static short waitingcommand = 0;
+static short turncommand = 0;
 // ===========================================
 
 
@@ -118,7 +118,7 @@ void setup()
   pinMode(MUXPIN1, OUTPUT);
   digitalWrite(MUXPIN0, LOW); // default to reading microphone amp
   digitalWrite(MUXPIN1, LOW);  
-
+  delay(10);
   while (startRobot < 20) { //Tone detection
     listen660();
   }
@@ -403,21 +403,36 @@ void getTurn() {
   short wallval = 0;
   short wallvalleft = 0;
   short wallvalright = 0;
-
+  delay(250);
   //Set MUX for front wall sensor
   digitalWrite(MUXPIN0, HIGH);
   digitalWrite(MUXPIN1, LOW);
-  wallval = analogRead(A5);
+  delay(1);
+  for(int i = 0; i < 3; i++){
+    wallval += analogRead(A5);
+    delay(5);
+  }
+  wallval = wallval / 3;
 
   //Set MUX for left wall sensor
   digitalWrite(MUXPIN0, LOW);
   digitalWrite(MUXPIN1, HIGH);
-  wallvalleft = analogRead(A5);
+  delay(1);
+  for(int i = 0; i < 3; i++){
+    wallvalleft += analogRead(A5);
+    delay(5);
+  }
+  wallvalleft = wallvalleft / 3;
 
   //Set MUX for right wall sensor
   digitalWrite(MUXPIN0, HIGH);
   digitalWrite(MUXPIN1, HIGH);
-  wallvalright = analogRead(A5);
+  delay(1);
+  for(int i = 0; i < 3; i++){
+    wallvalright += analogRead(A5);
+    delay(5);
+  }
+  wallvalright = wallvalright / 3;
   
 //  Serial.println(wallval);
 //  Serial.println(wallvalleft);
@@ -474,20 +489,21 @@ void getTurn() {
   switch(WP){
     case B000:
       //check unvisited
-      if(B > 0) turncommand = 2;
-      else if(R > 0) turncommand = -1;
-      else if(L > 0)turncommand = 1;
+      if(B == 0) turncommand = 2;
+      else if(R == 0) turncommand = -1;
+      else if(L == 0)turncommand = 1;
       else turncommand = 2;
       break;
     case B001:
       //check unvisited
-      if(B > 0) turncommand = 2;
-      else if (L > 0)turncommand = 1;
+      if(B == 0) turncommand = 2;
+      else if (L == 0)turncommand = 1;
       else turncommand = 2;
       break;
     case B010:
       //check unvisited
-      if(L > 0) turncommand = 1;
+      if(L == 0) turncommand = 1;
+      else if (R == 0) turncommand = -1;
       else turncommand = -1;
       break;
     case B011:
@@ -495,8 +511,8 @@ void getTurn() {
       break;
     case B0100:
       //check unvisited
-      if(B > 0) turncommand = 2;
-      else if (R > 0) turncommand = -1;
+      if(B == 0) turncommand = 2;
+      else if (R == 0) turncommand = -1;
       else turncommand = 2;
       break;
     case B0101:
