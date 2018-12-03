@@ -18,7 +18,7 @@
 #define RIGHT                   0
 #define LEFT                    2
 
-#define LINETHRESHOLD           380 // Threshold value for line sensors
+#define LINETHRESHOLD           600 // Threshold value for line sensors
 #define corrector               30
 
 #define NORTH     0
@@ -37,7 +37,7 @@ NUM_SENSORS, NUM_SAMPLES_PER_SENSOR, EMITTER_PIN);
 unsigned int sensorValues[NUM_SENSORS];
 
 byte robotkill = 0;    //Variable used for noise suppression in robot detection
-byte startRobot = 0;   //Variable used for noise suppression in tone detection
+int startRobot = 0;   //Variable used for noise suppression in tone detection
 // ===========================================================================
 
 
@@ -111,7 +111,7 @@ void setup()
   radio.openReadingPipe(1,pipes[1]);
   radio.startListening();
   
-//  Serial.begin(9600); // set the data rate in bits per second for serial data transmission
+  Serial.begin(9600); // set the data rate in bits per second for serial data transmission
 
 // ============= Analog Mux Setup and 660Hz Detection =============
   pinMode(MUXPIN0, OUTPUT);
@@ -120,6 +120,7 @@ void setup()
   digitalWrite(MUXPIN1, LOW);  
   delay(10);
   while (startRobot < 20) { //Tone detection
+    Serial.println("Listening for 660 Hz tone!");
     listen660();
   }
 
