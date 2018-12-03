@@ -28,7 +28,7 @@ class Stack {
 
     // NOTE the direction the robot decides to go should be passed in as false
     void checkUnvisited(int currentLocation, int n, int e, int s, int w) {
-      if (n+e+s+w >= 2) { //cc if there is more than one unvisited node
+      if (n+e+s+w >= 2) { //if there is more than one unvisited node
         clearStack(currentLocation);
       }
     } 
