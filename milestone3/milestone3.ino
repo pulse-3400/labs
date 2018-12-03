@@ -19,7 +19,10 @@
 #define LEFT                    2
 
 #define LINETHRESHOLD           600 // Threshold value for line sensors
-#define corrector               30
+#define corrector 5
+
+#define LEFTMAX   130
+#define RIGHTMAX  50
 
 #define NORTH     0
 #define EAST      1
@@ -79,8 +82,8 @@ Right now I am formatting the 16-bit radio transmission like this:
 
 
 // ====== Correction Function Variables ======
-volatile short leftspeed = 180;
-volatile short rightspeed = 0;
+volatile short leftspeed = LEFTMAX;
+volatile short rightspeed = RIGHTMAX;
 // ===========================================
 
 
@@ -100,6 +103,9 @@ Servo wheelLeft;
 
 void setup()
 {    
+  nextstate = 0;
+
+  
   radio.begin();
   radio.setRetries(15,15);
   radio.setAutoAck(true);
@@ -154,7 +160,7 @@ void loop()
   if(waitingcommand == 1){
     getTurn();
     transmission = (walls << 8) | (ypos << 4) | xpos; // FORMATION OF RADIO TRANSMISSION (explanation above)
-    maze[ypos][xpos] |=  (1 << 4) | walls; //Update maze array
+    maze[xpos][ypos] |=  (1 << 4) | walls; //Update maze array
     radio.startWrite(&transmission, sizeof(short));
     waitingcommand = 0;
   }
@@ -232,7 +238,7 @@ void correctionMachine(){
           xpos--;
           break;
       }
-      delay(250);
+      delay(300);
       nextstate = 4;
       //nextstate = (linePos == 4000)? 3 : 4;
       break;
@@ -251,6 +257,19 @@ void correctionMachine(){
       break;
       
     //================== RIGHT TURN SEQUENCE ================  
+    case 5:
+      turnRight();
+      wheelRight.write(rightspeed);
+      wheelLeft.write(leftspeed);
+      delay(700);
+      halt();
+      wheelRight.write(rightspeed);
+      wheelLeft.write(leftspeed);
+      orientation++;
+      nextstate = 4;
+      break;
+      
+    /*
     case 5:
       turnRight();
       nextstate = 6; 
@@ -277,9 +296,23 @@ void correctionMachine(){
         nextstate = 7;
       }
       break;
+      */
     //=======================================================
 
     //================= LEFT TURN SEQUENCE ==================
+    case 8:
+      turnLeft();
+      wheelRight.write(rightspeed);
+      wheelLeft.write(leftspeed);
+      delay(700);
+      halt();
+      wheelRight.write(rightspeed);
+      wheelLeft.write(leftspeed);
+      orientation--;
+      nextstate = 4;
+      break;
+    
+    /*
     case 8:
       turnLeft();
       nextstate = 9;
@@ -306,34 +339,35 @@ void correctionMachine(){
         nextstate = 10;
       }
       break;
+     */
   }
   //=========================================================  
 }
 
 
 void correctStraight(){
-  if(rightspeed > 0){
+  if(rightspeed > RIGHTMAX){
     rightspeed -= corrector;
   }
-  if(leftspeed < 180){
+  if(leftspeed < LEFTMAX){
   leftspeed += corrector;
   }
 }
 
 void correctLeft(){
-  if(rightspeed > 0){
+  if(rightspeed > RIGHTMAX){
     rightspeed -= corrector;
   }
-  else if(rightspeed == 0 && leftspeed > 90){
+  else if(rightspeed == RIGHTMAX && leftspeed > 90){
     leftspeed -= corrector;
   }
 }
 
 void correctRight(){
-  if(leftspeed < 180){
+  if(leftspeed < LEFTMAX){
     leftspeed += corrector;
   }
-  else if(leftspeed == 180 && rightspeed < 90){
+  else if(leftspeed == LEFTMAX && rightspeed < 90){
     rightspeed += corrector;
   }
 }
@@ -343,13 +377,13 @@ void correctRight(){
  ******************/
 
 void turnLeft(){
-  rightspeed = 0;
-  leftspeed = 0;
+  rightspeed = RIGHTMAX;
+  leftspeed = RIGHTMAX;
 }
 
 void turnRight(){
-  rightspeed = 180;;
-  leftspeed = 180;
+  rightspeed = LEFTMAX;
+  leftspeed = LEFTMAX;
 }
 
 void halt() {
@@ -505,7 +539,7 @@ void getTurn() {
       //check unvisited
       if(L == 0) turncommand = 1;
       else if (R == 0) turncommand = -1;
-      else turncommand = -1;
+      else turncommand = 1;
       break;
     case B011:
       turncommand = 1;
