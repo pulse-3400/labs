@@ -17,8 +17,8 @@ class Stack {
       }
     }
 
-    void updateLocation(int current) {
-      checkUnvisited();
+    void updateLocation(int current, int n, int e, int s, int w) {
+      checkUnvisited(current, n, s, e, w);
       for (int k = 0; k < 81; k++) {
         if (k == -1) {
           stack[k] = current;
